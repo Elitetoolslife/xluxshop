@@ -241,7 +241,62 @@ class HuntingtonController
   <td>Account Info</td>
   <td><b><textarea rows='10' cols='30'><?php echo htmlspecialchars($login); ?></textarea></b></td>
 </tr>
-</table>
+</table>/**
+     * Show user's purchases
+     */
+    public function showPurchases()
+    {
+        ob_start();
+        session_start();
+        date_default_timezone_set('UTC');
+
+        // Ensure user is logged in
+        if (!isset($_SESSION['user'])) {
+            header("Location: /login");
+            exit();
+        }
+
+        $uid = mysqli_real_escape_string($this->dbcon, $_SESSION['user']);
+
+        // Fetch user purchases
+        $query = mysqli_query($this->dbcon, "SELECT * FROM purchases WHERE buyer='$uid' ORDER BY id DESC");
+        $purchases = mysqli_fetch_all($query, MYSQLI_ASSOC);
+
+        echo $this->blade->run("purchases", [
+            "purchases" => $purchases
+        ]);
+    }
+
+    /**
+     * Handle report request
+     */
+    public function reportPurchase($id, $message)
+    {
+        session_start();
+        $username = mysqli_real_escape_string($this->dbcon, $_SESSION['user']);
+        $id = intval($id);
+        $message = mysqli_real_escape_string($this->dbcon, $message);
+
+        // Fetch the purchase
+        $stmt = $this->dbcon->prepare("SELECT * FROM purchases WHERE id=? AND buyer=?");
+        $stmt->bind_param("is", $id, $username);
+        $stmt->execute();
+        $purchase = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$purchase) {
+            echo "Invalid Purchase";
+            exit();
+        }
+
+        // Update the purchase to mark as reported
+        $stmt = $this->dbcon->prepare("UPDATE purchases SET reported=1, report_message=? WHERE id=?");
+        $stmt->bind_param("si", $message, $id);
+        $stmt->execute();
+        $stmt->close();
+
+        echo "Report submitted successfully";
+    }
 <?php
                 }
             }
