@@ -248,22 +248,4 @@ class HuntingtonController
         }
     }
 }
-?>update my huntingtonbank with my provided column --
-
-  `id` int(11) NOT NULL,
-  `acctype` varchar(255) NOT NULL,
-  `country` varchar(255) NOT NULL,
-  `infos` text NOT NULL,
-  `price` int(11) NOT NULL,
-  `url` text NOT NULL,
-  `sold` int(11) NOT NULL,
-  `sto` varchar(255) NOT NULL,
-  `dateofsold` text NOT NULL DEFAULT current_timestamp(),
-  `date` text NOT NULL,
-  `resseller` varchar(255) NOT NULL,
-  `reported` varchar(255) NOT NULL,
-  `bankname` varchar(255) NOT NULL,
-  `balance` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
---
+?>
