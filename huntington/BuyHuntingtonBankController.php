@@ -214,6 +214,38 @@ class HuntingtonController
                     $code = array_search("$country", $this->countrycodes);
                     $countrycode = strtolower($code);
 ?>
+<?php
+
+namespace App\Models;
+
+class Purchase
+{
+    protected $dbcon;
+
+    public function __construct($dbcon)
+    {
+        $this->dbcon = $dbcon;
+    }
+
+    public function getPurchasesByBuyer($buyer)
+    {
+        $stmt = $this->dbcon->prepare("SELECT * FROM purchases WHERE buyer=? ORDER BY id DESC");
+        $stmt->bind_param("s", $buyer);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $purchases = $result->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        return $purchases;
+    }
+
+    public function reportPurchase($id, $message)
+    {
+        $stmt = $this->dbcon->prepare("UPDATE purchases SET reported=1, report_message=? WHERE id=?");
+        $stmt->bind_param("si", $message, $id);
+        $stmt->execute();
+        $stmt->close();
+    }
 
 <h4>Huntington Bank</h4>
 <table class="table">
