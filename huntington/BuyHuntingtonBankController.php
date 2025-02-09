@@ -1,4 +1,4 @@
-<?php
+<?php 
 
 namespace App\Http\Controllers;
 
@@ -24,6 +24,21 @@ class HuntingtonController
     }
 
     /**
+     * Helper function to get cached data or fetch it from the database.
+     */
+    private function getCachedData($cacheFile, $query)
+    {
+        if (file_exists($cacheFile) && time() - filemtime($cacheFile) < 300) { // Cache for 5 minutes
+            return json_decode(file_get_contents($cacheFile), true);
+        }
+
+        $data = $this->dbcon->query($query)->fetch_all(MYSQLI_ASSOC);
+        file_put_contents($cacheFile, json_encode($data));
+
+        return $data;
+    }
+
+    /**
      * Show Huntington bank listings (with caching)
      */
     public function showHuntingtonbank()
@@ -43,21 +58,14 @@ class HuntingtonController
 
         // Cache user data for performance
         $cacheFile = __DIR__ . "/../../../storage/cache/user_{$uid}.json";
-        if (file_exists($cacheFile) && time() - filemtime($cacheFile) < 300) { // Cache for 5 minutes
-            $userData = json_decode(file_get_contents($cacheFile), true);
-        } else {
-            $query = mysqli_query($this->dbcon, "SELECT username, balance FROM users WHERE username='$uid'");
-            $userData = mysqli_fetch_assoc($query);
-            file_put_contents($cacheFile, json_encode($userData));
-        }
+        $userData = file_exists($cacheFile) && time() - filemtime($cacheFile) < 300
+            ? json_decode(file_get_contents($cacheFile), true)
+            : $this->fetchUserData($uid);
 
         if (!$userData) {
             header("Location: /logout");
             exit();
         }
-
-        $username = $userData['username'];
-        $balance = $userData['balance'];
 
         // Generate CSRF Token
         if (!isset($_SESSION['csrf_token'])) {
@@ -65,21 +73,15 @@ class HuntingtonController
         }
 
         // Fetch Huntington bank data (cached)
-        $cacheFile = __DIR__ . "/../../../storage/cache/huntington_data.json";
-        if (file_exists($cacheFile) && time() - filemtime($cacheFile) < 300) { // Cache for 5 minutes
-            $data = json_decode(file_get_contents($cacheFile), true);
-        } else {
-            $data = [
-                "countries" => $this->dbcon->query("SELECT DISTINCT(country) FROM huntingtonbanks WHERE sold = '0' ORDER BY country ASC")->fetch_all(MYSQLI_ASSOC),
-                "sellers" => $this->dbcon->query("SELECT DISTINCT(resseller) FROM huntingtonbanks WHERE sold = '0' ORDER BY resseller ASC")->fetch_all(MYSQLI_ASSOC),
-                "huntingtonbanks" => $this->dbcon->query("SELECT * FROM huntingtonbanks WHERE sold='0' ORDER BY RAND()")->fetch_all(MYSQLI_ASSOC)
-            ];
-            file_put_contents($cacheFile, json_encode($data));
-        }
+        $data = [
+            "countries" => $this->getCachedData(__DIR__ . "/../../../storage/cache/countries.json", "SELECT DISTINCT(country) FROM huntingtonbanks WHERE sold = '0' ORDER BY country ASC"),
+            "sellers" => $this->getCachedData(__DIR__ . "/../../../storage/cache/sellers.json", "SELECT DISTINCT(resseller) FROM huntingtonbanks WHERE sold = '0' ORDER BY resseller ASC"),
+            "huntingtonbanks" => $this->getCachedData(__DIR__ . "/../../../storage/cache/huntington_data.json", "SELECT * FROM huntingtonbanks WHERE sold='0' ORDER BY RAND()")
+        ];
 
         echo $this->blade->run("huntington", [
-            "username" => $username,
-            "balance" => $balance,
+            "username" => $userData['username'],
+            "balance" => $userData['balance'],
             "countries" => $data['countries'],
             "sellers" => $data['sellers'],
             "huntingtonbanks" => $data['huntingtonbanks'],
@@ -89,13 +91,24 @@ class HuntingtonController
     }
 
     /**
+     * Fetch user data from database and cache it.
+     */
+    private function fetchUserData($uid)
+    {
+        $query = mysqli_query($this->dbcon, "SELECT username, balance FROM users WHERE username='$uid'");
+        $userData = mysqli_fetch_assoc($query);
+        file_put_contents(__DIR__ . "/../../../storage/cache/user_{$uid}.json", json_encode($userData));
+
+        return $userData;
+    }
+
+    /**
      * Handle purchase request (JSON API)
      */
     public function buyHuntington()
     {
         ob_start();
         session_start();
-        $dbcon = $this->dbcon;
         $date = date("Y-m-d H:i:s");
 
         // Ensure the request is JSON
@@ -119,7 +132,7 @@ class HuntingtonController
         $uid = intval($input['id']);
 
         // Fetch the item
-        $stmt = $dbcon->prepare("SELECT * FROM huntingtonbanks WHERE id=? AND sold=0");
+        $stmt = $this->dbcon->prepare("SELECT * FROM huntingtonbanks WHERE id=? AND sold=0");
         $stmt->bind_param("i", $uid);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -131,7 +144,7 @@ class HuntingtonController
         }
 
         // Get user balance
-        $stmt = $dbcon->prepare("SELECT balance, ipurchassed FROM users WHERE username=?");
+        $stmt = $this->dbcon->prepare("SELECT balance, ipurchassed FROM users WHERE username=?");
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc();
@@ -180,100 +193,6 @@ class HuntingtonController
     }
 
     /**
-     * Open Huntington Bank order details
-     */
-    public function OpenHuntingtonbankorder()
-    {
-        function srl($item)
-        {
-            $item0 = $item;
-            $item1 = rtrim($item0);
-            $item2 = ltrim($item1);
-            return $item2;
-        }
-
-        $username = mysqli_real_escape_string($this->dbcon, $_SESSION['user']);
-        $orderid = mysqli_real_escape_string($this->dbcon, $_GET['id']);
-        $query = mysqli_query($this->dbcon, "SELECT * FROM purchases WHERE buyer='$username' and id='$orderid'") or die(mysqli_error($this->dbcon));
-
-        while ($row = mysqli_fetch_assoc($query)) {
-            // Huntington Bank
-            if ($row['type'] == "huntingtonbank") {
-                $itemid = $row['s_id'];
-                $question = mysqli_query($this->dbcon, "SELECT * FROM huntingtonbanks WHERE id='$itemid'") or die(mysqli_error($this->dbcon));
-                while ($row_country = mysqli_fetch_assoc($question)) {
-                    $country = $row_country['country'];
-                    $infos = $row_country['infos'];
-                    $url = $row_country['url'];
-                    $row_url = explode("|", $url);
-                    $url = srl($row_url[0]);
-                    $login = srl($row_url[1]);
-                    $balance = srl($row_url[2]);
-                    $maindom = parse_url($url, PHP_URL_HOST);
-                    $domain = $row_country['domain'];
-                    $code = array_search("$country", $this->countrycodes);
-                    $countrycode = strtolower($code);
-?>
-<?php
-
-namespace App\Models;
-
-class Purchase
-{
-    protected $dbcon;
-
-    public function __construct($dbcon)
-    {
-        $this->dbcon = $dbcon;
-    }
-
-    public function getPurchasesByBuyer($buyer)
-    {
-        $stmt = $this->dbcon->prepare("SELECT * FROM purchases WHERE buyer=? ORDER BY id DESC");
-        $stmt->bind_param("s", $buyer);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $purchases = $result->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-
-        return $purchases;
-    }
-
-    public function reportPurchase($id, $message)
-    {
-        $stmt = $this->dbcon->prepare("UPDATE purchases SET reported=1, report_message=? WHERE id=?");
-        $stmt->bind_param("si", $message, $id);
-        $stmt->execute();
-        $stmt->close();
-    }
-
-<h4>Huntington Bank</h4>
-<table class="table">
-<tr>
-  <td>Country</td>
-  <td><b><span class="flag-icon flag-icon-<?php echo htmlspecialchars($countrycode); ?>"></span> <?php echo htmlspecialchars($country); ?></b></td>
-</tr>
-
-<tr>
-  <td>Bank Name</td>
-  <td><b><?php echo htmlspecialchars($domain); ?></b></td>
-</tr>
-
-<tr>
-  <td>Available Information</td>
-  <td><b><?php echo htmlspecialchars($infos); ?></b></td>
-</tr>
-
-<tr>
-  <td>Balance</td>
-  <td><b><a><?php echo htmlspecialchars($balance); ?></a></b></td>
-</tr>
-
-<tr>
-  <td>Account Info</td>
-  <td><b><textarea rows='10' cols='30'><?php echo htmlspecialchars($login); ?></textarea></b></td>
-</tr>
-</table>/**
      * Show user's purchases
      */
     public function showPurchases()
@@ -282,19 +201,16 @@ class Purchase
         session_start();
         date_default_timezone_set('UTC');
 
-        // Ensure user is logged in
         if (!isset($_SESSION['user'])) {
             header("Location: /login");
             exit();
         }
 
         $uid = mysqli_real_escape_string($this->dbcon, $_SESSION['user']);
-
-        // Fetch user purchases
         $query = mysqli_query($this->dbcon, "SELECT * FROM purchases WHERE buyer='$uid' ORDER BY id DESC");
         $purchases = mysqli_fetch_all($query, MYSQLI_ASSOC);
 
-        echo $this->blade->run("purchases", [
+        echo $this->blade->run("purchased", [
             "purchases" => $purchases
         ]);
     }
@@ -329,10 +245,4 @@ class Purchase
 
         echo "Report submitted successfully";
     }
-<?php
-                }
-            }
-        }
-    }
 }
-?>
