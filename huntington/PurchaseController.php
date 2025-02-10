@@ -9,12 +9,12 @@ use mysqli;
 
 class PurchaseController
 {
-    protected $dbcon;
+    protected $db;
     protected $blade;
 
-    public function __construct($dbcon)
+    public function __construct($db)
     {
-        $this->dbcon = $dbcon;
+        $this->db = $db;
 
         $views = __DIR__ . '/../../../views';
         $cache = __DIR__ . '/../../../storage/cache';
@@ -38,9 +38,9 @@ class PurchaseController
         }
 
         $user = trim($_SESSION['user']);
-        $uid = mysqli_real_escape_string($this->dbcon, $user);
+        $uid = mysqli_real_escape_string($this->db, $user);
 
-        $stmt = $this->dbcon->prepare("SELECT * FROM purchases WHERE buyer = ? ORDER BY id DESC");
+        $stmt = $this->db->prepare("SELECT * FROM purchases WHERE buyer = ? ORDER BY id DESC");
         $stmt->bind_param("s", $uid);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -59,7 +59,7 @@ class PurchaseController
         }
 
         $user = trim($_SESSION['user']);
-        $userId = mysqli_real_escape_string($this->dbcon, $user);
+        $userId = mysqli_real_escape_string($this->db, $user);
         $orderId = trim($request->get("order_id"));
         $message = trim($request->get("message"));
 
@@ -68,7 +68,7 @@ class PurchaseController
         }
 
         // Validate if the order belongs to the user
-        $stmt = $this->dbcon->prepare("SELECT * FROM purchases WHERE id = ? AND buyer = ?");
+        $stmt = $this->db->prepare("SELECT * FROM purchases WHERE id = ? AND buyer = ?");
         $stmt->bind_param("is", $orderId, $userId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -79,7 +79,7 @@ class PurchaseController
         $stmt->close();
 
         // Check if order is already reported
-        $stmt = $this->dbcon->prepare("SELECT * FROM reports WHERE s_id = ? AND uid = ?");
+        $stmt = $this->db->prepare("SELECT * FROM reports WHERE s_id = ? AND uid = ?");
         $stmt->bind_param("is", $orderId, $userId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -90,7 +90,7 @@ class PurchaseController
         $stmt->close();
 
         // Insert report
-        $stmt = $this->dbcon->prepare("INSERT INTO reports (s_id, uid, message, status) VALUES (?, ?, ?, 'pending')");
+        $stmt = $this->db->prepare("INSERT INTO reports (s_id, uid, message, status) VALUES (?, ?, ?, 'pending')");
         $stmt->bind_param("iss", $orderId, $userId, $message);
 
         if ($stmt->execute()) {
