@@ -24,7 +24,7 @@ $usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
                 <select class="filterselect form-control input-sm" name="huntington_country" id="huntington_country">
                     <option value="">ALL</option>
                     <?php
-                    $query = mysqli_query($dbcon, "SELECT DISTINCT `country` FROM `huntingtons` WHERE `sold` = '0' ORDER BY country ASC");
+                    $query = mysqli_query($dbcon, "SELECT DISTINCT `country` FROM `huntington` WHERE `sold` = '0' ORDER BY country ASC");
                     while ($row = mysqli_fetch_assoc($query)) {
                         echo '<option value="' . htmlspecialchars($row['country']) . '">' . htmlspecialchars($row['country']) . '</option>';
                     }
@@ -40,7 +40,7 @@ $usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
                 <select class="filterselect form-control input-sm" name="huntington_seller" id="huntington_seller">
                     <option value="">ALL</option>
                     <?php
-                    $query = mysqli_query($dbcon, "SELECT DISTINCT `resseller` FROM `huntingtons` WHERE `sold` = '0' ORDER BY resseller ASC");
+                    $query = mysqli_query($dbcon, "SELECT DISTINCT `resseller` FROM `huntington` WHERE `sold` = '0' ORDER BY resseller ASC");
                     while ($row = mysqli_fetch_assoc($query)) {
                         $qer = mysqli_query($dbcon, "SELECT DISTINCT `id` FROM resseller WHERE username='" . mysqli_real_escape_string($dbcon, $row['resseller']) . "' ORDER BY id ASC") or die(mysqli_error($dbcon));
                         while ($rpw = mysqli_fetch_assoc($qer)) {
@@ -74,7 +74,7 @@ $usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
     <tbody>
         <?php
         include("cr.php");
-        $q = mysqli_query($dbcon, "SELECT * FROM huntingtons WHERE sold='0' ORDER BY RAND()")or die(mysqli_error());
+        $q = mysqli_query($dbcon, "SELECT * FROM huntington WHERE sold='0' ORDER BY RAND()")or die(mysqli_error());
         while ($row = mysqli_fetch_assoc($q)) {
             $countryfullname = htmlspecialchars($row['country']);
             $code = array_search("$countryfullname", $countrycodes);
