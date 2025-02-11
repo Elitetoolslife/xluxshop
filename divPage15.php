@@ -1,165 +1,225 @@
+Since you’re using BladeOne as your templating engine in a core PHP project, you should separate your PHP logic from your HTML views while keeping the BladeOne structure. Below is how you can refactor your order list page using BladeOne.
+
+Steps to Convert to BladeOne
+
+	1.	Move all PHP logic to a controller or a separate PHP file.
+	2.	Pass data (orders, user session, etc.) to BladeOne.
+	3.	Convert HTML output into a Blade template.
+
+1. Controller: orders.php
+
+Create a new file orders.php where you’ll handle the PHP logic.
+
 <?php
 ob_start();
 session_start();
-error_reporting();
+error_reporting(E_ALL);
 date_default_timezone_set('UTC');
-include "includes/config.php";
 
-if (!isset($_SESSION['sname']) and !isset($_SESSION['spass'])) {
+include "includes/config.php";
+include "includes/BladeOne.php";
+
+use eftec\bladeone\BladeOne;
+
+if (!isset($_SESSION['sname']) || !isset($_SESSION['spass'])) {
     header("location: ../");
     exit();
 }
-?>
-<script>
-function sendt(id){
 
-    var sub = $("#subject"+id).val();
-    var msg = $("#msg"+id).val();
-    var pr = $("#proi"+id).val();
-     $.ajax({
-     method:"GET",
-     url:"CreateReport.html?id="+id+"&m="+btoa(msg),
-     dataType:"text",
-     success:function(data){
-     $("#resulta"+id).html(data).show();
-     },
-   });
-}
+// BladeOne setup
+$views = __DIR__ . '/views'; // Path to your Blade view files
+$cache = __DIR__ . '/cache'; // Path to store compiled Blade templates
+$blade = new BladeOne($views, $cache, BladeOne::MODE_AUTO);
 
-    </script>
-<div class="well well">
-<h2><center><small><font color="#080C39"><span class="glyphicon glyphicon-shopping-cart"></span></small></font> My Orders	</h2>
-<p align="center">You can only report a bad tool within <b>10 hours</b> by clicking on <a class="btn btn-primary btn-xs"><font color=white>Report #[Order Id]</a></font> , Otherwise we can't give you refund or replacement!</p>
-                    </div>
-
-<table width="100%" class="table table-striped table-bordered table-condensed" id="table">
-						
-					<thead>
-            <tr>
-  <th scope="col">ID</th>
-  <th scope="col">Type</th>
-  <th scope="col">Item</th>
-  <th scope="col">Open</th>
-  <th scope="col">Price</th>
-  <th scope="col">Seller</th>
-  <th scope="col">Report</th>
-   <th scope="col">Date</th>
-            </tr>
-        </thead>
- <tbody id='tbody2'>
- <?php
 $real_data = date("Y-m-d H:i:s");
-$usrid     = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
-$q = mysqli_query($dbcon, "SELECT * FROM purchases WHERE buyer='$usrid' ORDER BY id DESC") or die(mysql_error());
+$usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
+$query = "SELECT p.*, r.id AS report_id, r.uid 
+          FROM purchases p 
+          LEFT JOIN reports r ON p.s_id = r.s_id AND r.uid = '$usrid'
+          WHERE p.buyer='$usrid' ORDER BY p.id DESC";
 
-while ($row = mysqli_fetch_assoc($q)) {
-    $idorder   = $row['id'];
-    $toollink1 = $row['url'];
-    $sidd      = $row['s_id'];
-    $type      = $row['type'];
-    $info      = $row['url'];
-    $desc      = $row['infos'];
-    echo "<tr>
-	    <td> " . $row['id'] . " </td>
-    <td> " . strtoupper($row['type']) . " </td>
-    <td> " . $row['url'] . " </td>";
-?>
-    <td> 
-<button onclick="openitem(<?php echo $idorder; ?>)" class="btn btn-primary btn-xs"> Open #<?php echo $idorder; ?></button>
+$result = mysqli_query($dbcon, $query) or die(mysqli_error($dbcon));
 
-    <?php
-	 	 	    $qer = mysqli_query($dbcon, "SELECT * FROM resseller WHERE username='".$row['resseller']."'")or die(mysql_error());
-		   while($rpw = mysqli_fetch_assoc($qer))
-			 $SellerNick = "seller".$rpw["id"]."";
-    echo "
-    <td> " . $row['price'] . "</td>
-	    <td> " . $SellerNick . "</td>
-    <td> ";
-	$pending= 0;
-    $date_purchased = $row['date'];
-    $endTime        = strtotime("+600 minutes", strtotime($date_purchased));
-    $data_plus      = date('Y-m-d H:i:s', $endTime);
-    if (($real_data > $data_plus) && ($row['reported'] == "")) {
-        echo 'Time expired';
-    } else {
-        if ($row['reported'] == "1") {
-            $qrrr = mysqli_query($dbcon, "SELECT * FROM reports WHERE s_id='$sidd' and uid='$usrid'") or die(mysqli_error());
-            while ($rowe = mysqli_fetch_assoc($qrrr)) {
-                $idreport = $rowe['id'];
-                echo "<font color='green'><a href='vr-$idreport.html'><u>#$idreport</u></font></a>";
-            }
-        } else {
-            echo '<a data-toggle="modal" class="btn btn-primary btn-xs" data-target="#myModald' . $row["id"] . '" >
-<font color=white>Report #[' . $idorder . '] </a></center>';
-        }
-    }
-    echo "</td>
-		    <td> " . $row['date'] . "</td>
-    </tr>";
-    
-    echo '
- 
-<div class="modal fade" id="myModald' . $row['id'] . '" >
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h4 class="modal-title" id="myModalLabel">
-                                              Report Form
-                                            </h4>
-                                        </div>
-                                        <div class="modal-body">
-<div class="well well-sm">
-  <h4><b>Report Of Order #' . $row['id'] . ' </b></h4>
-  <p>Please write clearly what is wrong with this <b>'.$row['type'].'</b> and why you want to refund it</p>
-</div>
-<div id="resulta' . $row['id'] . '">
-<div class="input-group">
-    <textarea id="msg' . $row['id'] . '"  class="form-control custom-control" rows="3" name="memo" style="resize:none" required=""></textarea>     
-    <span id="xreport" class="input-group-addon btn btn-primary" onclick="this.disabled=true;javascript:sendt(' . $row['id'] . ');">Submit</span>
-</div>
-</div>
-</div>
-<div class="modal-footer">
-        <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
-      </div>
-';
-    
-    
+$orders = [];
+while ($row = mysqli_fetch_assoc($result)) {
+    $order = [
+        'id' => $row['id'],
+        'type' => strtoupper($row['type']),
+        'url' => $row['url'],
+        'price' => $row['price'],
+        'seller' => "seller" . $row['s_id'], // Seller ID prefix
+        'date' => $row['date'],
+        'reported' => $row['reported'],
+        'report_id' => $row['report_id'],
+        'expired' => (strtotime($real_data) > strtotime("+600 minutes", strtotime($row['date'])) && $row['reported'] == ""),
+    ];
+    $orders[] = $order;
 }
+
+// Render Blade template
+echo $blade->run("orders.index", compact('orders'));
 ?>
 
- </tbody>
- </table>
+2. Blade Template: views/orders/index.blade.php
+
+Convert the HTML table into a Blade template.
+
+@extends('layouts.app')
+
+@section('content')
+<div class="well">
+    <h2 class="text-center">
+        <small><font color="#080C39"><span class="glyphicon glyphicon-shopping-cart"></span></font></small>
+        My Orders
+    </h2>
+    <p class="text-center">
+        You can only report a bad tool within <b>10 hours</b> by clicking on
+        <a class="btn btn-primary btn-xs"><font color=white>Report #[Order Id]</font></a>,
+        otherwise, we can't give you a refund or replacement!
+    </p>
 </div>
 
+<table class="table table-striped table-bordered table-condensed" id="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Item</th>
+            <th>Open</th>
+            <th>Price</th>
+            <th>Seller</th>
+            <th>Report</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach ($orders as $order)
+            <tr>
+                <td>{{ $order['id'] }}</td>
+                <td>{{ $order['type'] }}</td>
+                <td>{{ $order['url'] }}</td>
+                <td>
+                    <button onclick="openItem({{ $order['id'] }})" class="btn btn-primary btn-xs">
+                        Open #{{ $order['id'] }}
+                    </button>
+                </td>
+                <td>{{ $order['price'] }}</td>
+                <td>{{ $order['seller'] }}</td>
+                <td>
+                    @if ($order['expired'])
+                        Time expired
+                    @elseif ($order['reported'] == "1")
+                        <a href="vr-{{ $order['report_id'] }}.html"><font color='green'><u>#{{ $order['report_id'] }}</u></font></a>
+                    @else
+                        <a data-toggle="modal" class="btn btn-primary btn-xs" data-target="#reportModal{{ $order['id'] }}">
+                            <font color=white>Report #{{ $order['id'] }}</font>
+                        </a>
+                    @endif
+                </td>
+                <td>{{ $order['date'] }}</td>
+            </tr>
 
-<script type="text/javascript">
-function openitem(order){
-  $("#myModalHeader").text('Order #'+order);
-  $('#myModal').modal('show');
-  $.ajax({
-    type:       'GET',
-    url:        'showOrder'+order+'.html',
-    success:    function(data)
-    {
-        $("#modelbody").html(data).show();
-    }});
+            <!-- Report Modal -->
+            <div class="modal fade" id="reportModal{{ $order['id'] }}">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h4 class="modal-title">Report Form</h4>
+                        </div>
+                        <div class="modal-body">
+                            <div class="well well-sm">
+                                <h4><b>Report Of Order #{{ $order['id'] }}</b></h4>
+                                <p>Please write clearly what is wrong with this <b>{{ $order['type'] }}</b> and why you want to refund it.</p>
+                            </div>
+                            <div id="resulta{{ $order['id'] }}">
+                                <div class="input-group">
+                                    <textarea id="msg{{ $order['id'] }}" class="form-control custom-control" rows="3" required></textarea>
+                                    <span class="input-group-addon btn btn-primary" onclick="sendt({{ $order['id'] }})">
+                                        Submit
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endforeach
+    </tbody>
+</table>
 
+<!-- Order Modal -->
+<div class="modal fade" id="orderModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">
+                    <span aria-hidden="true">×</span>
+                </button>
+                <h4 class="modal-title" id="orderModalHeader"></h4>
+            </div>
+            <div class="modal-body" id="orderModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function sendt(id) {
+    var msg = $("#msg" + id).val();
+    $.ajax({
+        method: "GET",
+        url: "CreateReport.html?id=" + id + "&m=" + btoa(msg),
+        dataType: "text",
+        success: function(data) {
+            $("#resulta" + id).html(data).show();
+        },
+    });
+}
+
+function openItem(order) {
+    $("#orderModalHeader").text('Order #' + order);
+    $('#orderModal').modal('show');
+    $.ajax({
+        type: 'GET',
+        url: 'showOrder' + order + '.html',
+        success: function(data) {
+            $("#orderModalBody").html(data).show();
+        }
+    });
 }
 </script>
-<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
-        <h4 class="modal-title" id="myModalHeader"></h4>
-      </div>
-      <div class="modal-body" id="modelbody">
+@endsection
 
+3. Blade Layout (Optional)
 
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
-      </div>
+If you’re using a layout system, create a views/layouts/app.blade.php:
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Orders</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+    <div class="container">
+        @yield('content')
     </div>
-  </div>
+
+</body>
+</html>
+
+Final Outcome
+
+✅ Separation of Concerns – PHP logic in orders.php, UI in index.blade.php.
+✅ Improved Readability & Maintainability.
+✅ Easier Future Expansions (Reusability with Blade layouts).
+
+Let me know if you need further improvements!
