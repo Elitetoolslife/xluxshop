@@ -8,28 +8,45 @@ Steps to Convert to BladeOne
 
 1. Controller: orders.php
 
-Create a new file orders.php where you’ll handle the PHP logic.
-
+Create a new file lche'; // Path to store compiled Blade templates
+$blade = new BladeOne($views, $cache, BladeOne::MODE_AUTO);
 <?php
-ob_start();
-session_start();
-error_reporting(E_ALL);
-date_default_timezone_set('UTC');
 
-include "includes/config.php";
-include "includes/BladeOne.php";
+namespace App\Http\Controllers;
 
 use eftec\bladeone\BladeOne;
+use mysqli;
 
-if (!isset($_SESSION['sname']) || !isset($_SESSION['spass'])) {
-    header("location: ../");
-    exit();
-}
+class OrderController extends Controller
+{
+    protected $db;
+    protected $blade;
 
-// BladeOne setup
-$views = __DIR__ . '/views'; // Path to your Blade view files
-$cache = __DIR__ . '/cache'; // Path to store compiled Blade templates
-$blade = new BladeOne($views, $cache, BladeOne::MODE_AUTO);
+    public function __construct($db)
+    {
+        $this->db = $db;
+        $views = __DIR__ . '/../../../views';
+        $cache = __DIR__ . '/../../../storage/cache';
+        $this->blade = new BladeOne($views, $cache, BladeOne::MODE_AUTO);
+    }
+public function orders()
+{
+    ob_start();
+    session_start();
+    error_reporting(E_ALL);
+    date_default_timezone_set('UTC');
+
+    if (!isset($_SESSION['user']) and !isset($_SESSION['pass'])) {
+        header("location: ../");
+        exit();
+    }
+
+    // Ensure $_SESSION['user'] is a string
+    $username = is_array($_SESSION['user']) ? implode(',', $_SESSION['user']) : $_SESSION['user'];
+    
+    // Now use mysqli_real_escape_string safely
+    $username = mysqli_real_escape_string($this->db, $username);
+
 
 $real_data = date("Y-m-d H:i:s");
 $usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
@@ -57,7 +74,7 @@ while ($row = mysqli_fetch_assoc($result)) {
 }
 
 // Render Blade template
-echo $blade->run("orders.index", compact('orders'));
+echo $blade->run("orders", compact('orders'));
 ?>
 
 2. Blade Template: views/orders/index.blade.php
