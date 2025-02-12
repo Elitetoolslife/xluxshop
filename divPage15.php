@@ -1,15 +1,42 @@
 <?php
-ob_start();
-session_start();
-error_reporting();
-date_default_timezone_set('UTC');
-include "../includes/config.php";
 
-if (!isset($_SESSION['user']) and !isset($_SESSION['pass'])) {
-    header("location: ../");
-    exit();
-}
-?>
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use eftec\bladeone\BladeOne;
+
+class AuthController extends Controller
+{
+    protected $user;
+    protected $blade;
+    protected $db;
+
+    public function __construct($db)
+    {
+        parent::__construct(); // Call parent constructor if needed
+
+
+        $this->user = new User($db);
+        $this->db = $db;
+
+        // Initialize BladeOne for templating
+        $views = __DIR__ . '/../../../views';
+        $cache = __DIR__ . '/../../../storage/cache';
+        $this->blade = new BladeOne($views, $cache, BladeOne::MODE_AUTO);
+
+        // Generate CSRF Token if not set
+        if (!isset($_SESSION['_token'])) {
+            $_SESSION['_token'] = bin2hex(random_bytes(32));
+        }
+    }
+
+    // ===============================
+    // AUTHENTICATION METHODS
+    // ===============================
+
+        // Load country codes from config/country.php
+        $this->countryCodes = include(__DIR__ . '/../../../config/countrycodes.php');
+    }
 <script>
 function sendt(id){
 
