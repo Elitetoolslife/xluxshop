@@ -1,3 +1,62 @@
+app\Controllers\PurchaseController.php
+<?php
+
+namespace App\Http\Controllers;
+
+use eftec\bladeone\BladeOne;
+use mysqli;
+
+class OrderController
+{
+    protected $db;
+    protected $blade;
+
+    public function __construct($db)
+    {
+        if (session_status() == PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        $this->db = $db;
+
+        // Initialize BladeOne for templating
+        $views = __DIR__ . '/../../../views';
+        $cache = __DIR__ . '/../../../storage/cache';
+        $this->blade = new BladeOne($views, $cache, BladeOne::MODE_AUTO);
+
+        // Generate CSRF Token if not set
+        if (!isset($_SESSION['_token'])) {
+            $_SESSION['_token'] = bin2hex(random_bytes(32));
+        }
+
+        // Ensure user is logged in
+        if (!isset($_SESSION['user'])) {
+            header("Location: /login");
+            exit;
+        }
+    }
+    public function  ordersTable()
+    {
+    
+    }
+        public function  showOrder()
+    {
+    
+    }
+        public function  reportOrder()
+    {
+    
+    }
+    
+            public function  openOrder()
+    {
+    
+    }
+    
+    
+    ?>
+    
+    
 <!DOCTYPE html>
 <html lang="en">
 <header>
