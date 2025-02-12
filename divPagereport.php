@@ -5,14 +5,14 @@ ob_start();
 session_start();
 date_default_timezone_set('UTC');
 
-if (!isset($_SESSION['sname']) and !isset($_SESSION['spass'])) {
+if (!isset($_SESSION['user']) and !isset($_SESSION['pass'])) {
     header("location: ../");
     exit();
 }
 
-$usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
-$tid = isset($_GET['id']) ? mysqli_real_escape_string($dbcon, $_GET['id']) : null;
-$uid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
+$username = mysqli_real_escape_string($db, $_SESSION['user']);
+$tid = isset($_GET['id']) ? mysqli_real_escape_string($db, $_GET['id']) : null;
+$uid = mysqli_real_escape_string($db, $_SESSION['user']);
 ?>
 
 <!DOCTYPE html>
@@ -33,7 +33,7 @@ $uid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
                 <div class="card-body">
                     @if ($tid)
                         <?php
-                        $s = mysqli_query($dbcon, "SELECT * FROM reports WHERE id='$tid' AND uid='$uid'") or die(mysqli_error($dbcon));
+                        $s = mysqli_query($db, "SELECT * FROM reports WHERE id='$tid' AND uid='$uid'") or die(mysqli_error($db));
                         $r = mysqli_fetch_assoc($s);
 
                         if (!empty($r)) {
@@ -103,7 +103,7 @@ $uid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
                             }
                             ?>
                             <?php
-                            mysqli_query($dbcon, "UPDATE reports SET seen='0' WHERE id='$tid' and uid='$uid'") or die(mysqli_error($dbcon));
+                            mysqli_query($db, "UPDATE reports SET seen='0' WHERE id='$tid' and uid='$uid'") or die(mysqli_error($db));
                             ?>
                             </div>
                         </div>
@@ -117,14 +117,14 @@ $uid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
                                         return trim($item);
                                     }
 
-                                    $srrrr = mysqli_query($dbcon, "SELECT * FROM reports WHERE id='$tid' AND uid='$uid'") or die(mysqli_error());
+                                    $srrrr = mysqli_query($db, "SELECT * FROM reports WHERE id='$tid' AND uid='$uid'") or die(mysqli_error());
                                     $rrrrx = mysqli_fetch_assoc($srrrr);
 
                                     if ($rrrrx['acctype']) {
                                         $itemid = $rrrrx['s_id'];
                                         switch ($rrrrx['acctype']) {
                                             case "cpanel":
-                                                $qe = mysqli_query($dbcon, "SELECT * FROM cpanels WHERE id='$itemid'") or die(mysql_error());
+                                                $qe = mysqli_query($db, "SELECT * FROM cpanels WHERE id='$itemid'") or die(mysql_error());
                                                 while ($rowe = mysqli_fetch_assoc($qe)) {
                                                     $country = $rowe['country'];
                                                     $hosting = $rowe['infos'];
@@ -177,7 +177,7 @@ $uid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
                                                 }
                                                 break;
                                             case "shell":
-                                                $qe = mysqli_query($dbcon, "SELECT * FROM stufs WHERE id='$itemid'") or die(mysql_error());
+                                                $qe = mysqli_query($db, "SELECT * FROM stufs WHERE id='$itemid'") or die(mysql_error());
                                                 while ($rowe = mysqli_fetch_assoc($qe)) {
                                                     $country = $rowe['country'];
                                                     $information = $rowe['url'];
@@ -203,7 +203,7 @@ $uid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
                                                 }
                                                 break;
                                             case "rdp":
-                                                $qe = mysqli_query($dbcon, "SELECT * FROM rdps WHERE id='$itemid'") or die(mysql_error());
+                                                $qe = mysqli_query($db, "SELECT * FROM rdps WHERE id='$itemid'") or die(mysql_error());
                                                 while ($rowe = mysqli_fetch_assoc($qe)) {
                                                     $country = $rowe['country'];
                                                     $access = $rowe['access'];
