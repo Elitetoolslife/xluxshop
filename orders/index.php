@@ -6,7 +6,7 @@ namespace App\Http\Controllers;
 use eftec\bladeone\BladeOne;
 use mysqli;
 
-class OrderController
+class PurchaseController
 {
     protected $db;
     protected $blade;
