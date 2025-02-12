@@ -76,8 +76,8 @@ function sendt(id){
  <tbody id='tbody2'>
  
 $real_data = date("Y-m-d H:i:s");
-$usrid     = mysqli_real_escape_string($dbcon, $_SESSION['user']);
-$q = mysqli_query($dbcon, "SELECT * FROM purchases WHERE buyer='$usrid' ORDER BY id DESC") or die(mysql_error());
+$usrid     = mysqli_real_escape_string($db, $_SESSION['user']);
+$q = mysqli_query($db, "SELECT * FROM purchases WHERE buyer='$usrid' ORDER BY id DESC") or die(mysql_error());
 
 while ($row = mysqli_fetch_assoc($q)) {
     $idorder   = $row['id'];
@@ -95,7 +95,7 @@ while ($row = mysqli_fetch_assoc($q)) {
 <button onclick="openitem( echo $idorder; )" class="btn btn-primary btn-xs"> Open # echo $idorder; </button>
 
     
-	 	 	    $qer = mysqli_query($dbcon, "SELECT * FROM resseller WHERE username='".$row['resseller']."'")or die(mysql_error());
+	 	 	    $qer = mysqli_query($db, "SELECT * FROM resseller WHERE username='".$row['resseller']."'")or die(mysql_error());
 		   while($rpw = mysqli_fetch_assoc($qer))
 			 $SellerNick = "seller".$rpw["id"]."";
     echo "
@@ -110,7 +110,7 @@ while ($row = mysqli_fetch_assoc($q)) {
         echo 'Time expired';
     } else {
         if ($row['reported'] == "1") {
-            $qrrr = mysqli_query($dbcon, "SELECT * FROM reports WHERE s_id='$sidd' and uid='$usrid'") or die(mysqli_error());
+            $qrrr = mysqli_query($db, "SELECT * FROM reports WHERE s_id='$sidd' and uid='$usrid'") or die(mysqli_error());
             while ($rowe = mysqli_fetch_assoc($qrrr)) {
                 $idreport = $rowe['id'];
                 echo "<font color='green'><a href='vr-$idreport.html'><u>#$idreport</u></font></a>";
