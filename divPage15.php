@@ -74,7 +74,7 @@ function sendt(id){
             </tr>
         </thead>
  <tbody id='tbody2'>
- <?php
+ 
 $real_data = date("Y-m-d H:i:s");
 $usrid     = mysqli_real_escape_string($dbcon, $_SESSION['user']);
 $q = mysqli_query($dbcon, "SELECT * FROM purchases WHERE buyer='$usrid' ORDER BY id DESC") or die(mysql_error());
@@ -90,11 +90,11 @@ while ($row = mysqli_fetch_assoc($q)) {
 	    <td> " . $row['id'] . " </td>
     <td> " . strtoupper($row['type']) . " </td>
     <td> " . $row['url'] . " </td>";
-?>
-    <td> 
-<button onclick="openitem(<?php echo $idorder; ?>)" class="btn btn-primary btn-xs"> Open #<?php echo $idorder; ?></button>
 
-    <?php
+    <td> 
+<button onclick="openitem( echo $idorder; )" class="btn btn-primary btn-xs"> Open # echo $idorder; </button>
+
+    
 	 	 	    $qer = mysqli_query($dbcon, "SELECT * FROM resseller WHERE username='".$row['resseller']."'")or die(mysql_error());
 		   while($rpw = mysqli_fetch_assoc($qer))
 			 $SellerNick = "seller".$rpw["id"]."";
@@ -153,13 +153,8 @@ while ($row = mysqli_fetch_assoc($q)) {
     
     
 }
-?>
-<?php
-ob_start();
-session_start();
-date_default_timezone_set('UTC');
 
-include("cr.php");
+include("../../../cr.php");
 
 if(!isset($_SESSION['user']) and !isset($_SESSION['spass'])){
    header("location: ../");
@@ -193,7 +188,7 @@ $information = $rowe['url'];
 $bankname = $rowe['bankname'];
 	 $code = array_search("$country", $countrycodes);
 	 $countrycode = strtolower($code);
-?>
+
 
 
 
@@ -201,36 +196,36 @@ $bankname = $rowe['bankname'];
 <table class="table">
 <tr>
   <td>Country</td>
-  <td><b><span class="flag-icon flag-icon-<?php echo htmlspecialchars($countrycode); ?>"></span> <?php echo htmlspecialchars($country); ?></b></td>
+  <td><b><span class="flag-icon flag-icon- echo htmlspecialchars($countrycode); "></span>  echo htmlspecialchars($country); </b></td>
 </tr>
 
   <tr>
   <td>Bank Name</td>
-  <td><b><?php echo htmlspecialchars($bankname); ?></b></td>
+  <td><b> echo htmlspecialchars($bankname); </b></td>
 </tr>
 
   <tr>
   <td>Available Information</td>
-  <td><b><?php echo htmlspecialchars($description); ?></b></td>
+  <td><b> echo htmlspecialchars($description); </b></td>
 </tr>
 
   <tr>
   <td>Balance</td>
-  <td><b><a><?php echo htmlspecialchars($balance); ?></a></b></td>
+  <td><b><a> echo htmlspecialchars($balance); </a></b></td>
 </tr>
 
   <tr>
   <td>Account Info</td>
-  <td><b><textarea rows='10' cols='30' ><?php echo htmlspecialchars($information); ?></textarea></b></td>
+  <td><b><textarea rows='10' cols='30' > echo htmlspecialchars($information); </textarea></b></td>
 </tr>
 
   		
  </tbody>
 
 
-	 <?php
+	 
 } 
-?>
+
 
  </table>
 </div>
