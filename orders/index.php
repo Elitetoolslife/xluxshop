@@ -43,12 +43,12 @@ class OrderController
     {
     
     }
-        public function  reportOrder()
+        public function  CreateReport()
     {
     
     }
     
-            public function  openOrder()
+            public function  openItem()
     {
     
     }
@@ -109,7 +109,7 @@ class OrderController
                             @if ($order['expired'])
                                 Time expired
                             @elseif ($order['reported'] == "1")
-                                <a href="vr-{{ $order['report_id'] }}.html"><font color='green'><u>#{{ $order['report_id'] }}</u></font></a>
+                                <button onclick="vr-{{ $order['report_id'] }}."><font color='green'><u>#{{ $order['report_id'] }}</u></font></a>
                             @else
                                 <a data-toggle="modal" class="btn btn-primary btn-xs" data-target="#reportModal{{ $order['id'] }}">
                                     <font color=white>Report #{{ $order['id'] }}</font>
@@ -133,7 +133,7 @@ class OrderController
                                     </div>
                                     <div id="resulta{{ $order['id'] }}">
                                         <div class="input-group">
-                                            <textarea id="msg{{ $order['id'] }}" class="form-control custom-control" rows="3" required></textarea>
+                                            <textarea id="message{{ $order['id'] }}" class="form-control custom-control" rows="3" required></textarea>
                                             <span class="input-group-addon btn btn-primary" onclick="sendt({{ $order['id'] }})">
                                                 Submit
                                             </span>
@@ -170,13 +170,13 @@ class OrderController
 
 <script>
 function sendt(id) {
-    var msg = $("#msg" + id).val();
+    var message = $("#message" + id).val();
     $.ajax({
         method: "GET",
-        url: "{{ url('CreateReport') }}?id=" + id + "&m=" + btoa(msg),
+        url: "{{ url('CreateReport') }}?id=" + id + "&m=" + btoa(message),
         dataType: "text",
         success: function(data) {
-            $("#resulta" + id).html(data).show();
+            $("#resulta" + id).(data).show();
         },
     });
 }
