@@ -61,6 +61,79 @@ class OrderController {
     }
 
     private function getOrders($user) {
+while ($row = mysqli_fetch_assoc($q)) {
+    $idorder   = $row['id'];
+    $toollink1 = $row['url'];
+    $sidd      = $row['s_id'];
+    $type      = $row['type'];
+    $info      = $row['url'];
+    $desc      = $row['infos'];
+    echo "<tr>
+	    <td> " . $row['id'] . " </td>
+    <td> " . strtoupper($row['type']) . " </td>
+    <td> " . $row['url'] . " </td>";
+    <td> 
+<button onclick="openitem{{( $idorder; )}}" class="btn btn-primary btn-xs"> Open #{{ ( $idorder;) }}</button>
+
+   
+	 	 	    $qer = mysqli_query($dbcon, "SELECT * FROM resseller WHERE username='".$row['resseller']."'")or die(mysql_error());
+		   while($rpw = mysqli_fetch_assoc($qer))
+			 $SellerNick = "seller".$rpw["id"]."";
+    echo "
+    <td> " . $row['price'] . "</td>
+	    <td> " . $SellerNick . "</td>
+    <td> ";
+	$pending= 0;
+    $date_purchased = $row['date'];
+    $endTime        = strtotime("+600 minutes", strtotime($date_purchased));
+    $data_plus      = date('Y-m-d H:i:s', $endTime);
+    if (($real_data > $data_plus) && ($row['reported'] == "")) {
+        echo 'Time expired';
+    } else {
+        if ($row['reported'] == "1") {
+            $qrrr = mysqli_query($dbcon, "SELECT * FROM reports WHERE s_id='$sidd' and uid='$user'") or die(mysqli_error());
+            while ($rowe = mysqli_fetch_assoc($qrrr)) {
+                $idreport = $rowe['id'];
+                echo "<font color='green'><a href='vr-$idreport.html'><u>#$idreport</u></font></a>";
+            }
+        } else {
+            echo '<a data-toggle="modal" class="btn btn-primary btn-xs" data-target="#myModald' . $row["id"] . '" >
+<font color=white>Report #[' . $idorder . '] </a></center>';
+        }
+    }
+    echo "</td>
+		    <td> " . $row['date'] . "</td>
+    </tr>";
+    
+    echo '
+ 
+<div class="modal fade" id="myModald' . $row['id'] . '" >
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h4 class="modal-title" id="myModalLabel">
+                                              Report Form
+                                            </h4>
+                                        </div>
+                                        <div class="modal-body">
+<div class="well well-sm">
+  <h4><b>Report Of Order #' . $row['id'] . ' </b></h4>
+  <p>Please write clearly what is wrong with this <b>'.$row['type'].'</b> and why you want to refund it</p>
+</div>
+<div id="resulta' . $row['id'] . '">
+<div class="input-group">
+    <textarea id="msg' . $row['id'] . '"  class="form-control custom-control" rows="3" name="memo" style="resize:none" required=""></textarea>     
+    <span id="xreport" class="input-group-addon btn btn-primary" onclick="this.disabled=true;javascript:sendt(' . $row['id'] . ');">Submit</span>
+</div>
+</div>
+</div>
+<div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+      </div>
+';
+    
+    
+}
         $orders = [];
         $username = $user->username;
         $stmt = $this->db->prepare("SELECT * FROM purchases WHERE buyer=? ORDER BY id DESC");
