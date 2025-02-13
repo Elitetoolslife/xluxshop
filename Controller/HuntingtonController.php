@@ -26,6 +26,7 @@ class HuntingtonController extends BaseController {
         $this->db = $db;
         // Assign the provided global country codes to the class property.
         $this->globalCountryCodes = $globalCountryCodes;
+        session_start(); // Start session for using $_SESSION
     }
 
     /**
@@ -42,7 +43,7 @@ class HuntingtonController extends BaseController {
         $username = $user->username;
         $balance  = isset($user->balance) ? $user->balance : 0;
         // Set your CSRF token here (update with your own logic if needed).
-        $csrf_token = '';
+        $csrf_token = bin2hex(random_bytes(32)); // Generate a CSRF token
 
         // Retrieve unique countries where the product is unsold.
         $countries = [];
@@ -97,67 +98,69 @@ class HuntingtonController extends BaseController {
             "csrf_token"      => $csrf_token
         ]);
     }
-public function getHuntingtonData()
-{
-    // Get request parameters
-    $country = isset($_GET['country']) ? $_GET['country'] : '';
-    $seller = isset($_GET['seller']) ? $_GET['seller'] : '';
-    $start = isset($_GET['start']) ? (int)$_GET['start'] : 0;
-    $length = isset($_GET['length']) ? (int)$_GET['length'] : 10;
-    $searchValue = isset($_GET['search']['value']) ? trim($_GET['search']['value']) : '';
-    $orderColumnIndex = isset($_GET['order'][0]['column']) ? (int)$_GET['order'][0]['column'] : 0;
-    $orderDir = isset($_GET['order'][0]['dir']) ? $_GET['order'][0]['dir'] : 'asc';
 
-    // Map DataTables column index to actual database columns
-    $columns = ['acctype', 'country', 'resseller', 'price'];
-    $orderBy = isset($columns[$orderColumnIndex]) ? $columns[$orderColumnIndex] : 'acctype';
+    public function getHuntingtonData()
+    {
+        // Get request parameters
+        $country = isset($_GET['country']) ? $_GET['country'] : '';
+        $seller = isset($_GET['seller']) ? $_GET['seller'] : '';
+        $start = isset($_GET['start']) ? (int)$_GET['start'] : 0;
+        $length = isset($_GET['length']) ? (int)$_GET['length'] : 10;
+        $searchValue = isset($_GET['search']['value']) ? trim($_GET['search']['value']) : '';
+        $orderColumnIndex = isset($_GET['order'][0]['column']) ? (int)$_GET['order'][0]['column'] : 0;
+        $orderDir = isset($_GET['order'][0]['dir']) ? $_GET['order'][0]['dir'] : 'asc';
 
-    // Base SQL query
-    $sql = "SELECT * FROM huntingtonbanks WHERE sold = 0";
+        // Map DataTables column index to actual database columns
+        $columns = ['acctype', 'country', 'resseller', 'price'];
+        $orderBy = isset($columns[$orderColumnIndex]) ? $columns[$orderColumnIndex] : 'acctype';
 
-    // Apply filters
-    if (!empty($country)) {
-        $sql .= " AND country = '" . $this->db->escape($country) . "'";
+        // Base SQL query
+        $sql = "SELECT * FROM huntingtonbanks WHERE sold = 0";
+
+        // Apply filters
+        if (!empty($country)) {
+            $sql .= " AND country = '" . $this->db->real_escape_string($country) . "'";
+        }
+        if (!empty($seller)) {
+            $sql .= " AND resseller = '" . $this->db->real_escape_string($seller) . "'";
+        }
+        if (!empty($searchValue)) {
+            $sql .= " AND (acctype LIKE '%" . $this->db->real_escape_string($searchValue) . "%' 
+                           OR country LIKE '%" . $this->db->real_escape_string($searchValue) . "%'
+                           OR resseller LIKE '%" . $this->db->real_escape_string($searchValue) . "%')";
+        }
+
+        // Get total records before pagination
+        $totalRecords = $this->db->query("SELECT COUNT(*) as count FROM huntingtonbanks WHERE sold = 0")->fetch_assoc()['count'];
+
+        // Apply ordering and pagination
+        $sql .= " ORDER BY $orderBy $orderDir LIMIT $start, $length";
+
+        // Fetch data
+        $results = $this->db->query($sql)->fetch_all(MYSQLI_ASSOC);
+
+        // Prepare response for DataTables
+        $data = [];
+        foreach ($results as $bank) {
+            $data[] = [
+                'acctype' => $bank['acctype'],
+                'country' => $bank['country'],
+                'resseller' => $bank['resseller'],
+                'price' => number_format($bank['price'], 2),
+                'action' => '<button class="btn btn-buy" onclick="confirmPurchase('.$bank['id'].', '.$bank['price'].')">Buy Now</button>'
+            ];
+        }
+
+        // Return JSON response
+        echo json_encode([
+            'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
+            'recordsTotal' => $totalRecords,
+            'recordsFiltered' => count($data),
+            'data' => $data
+        ]);
+        exit;
     }
-    if (!empty($seller)) {
-        $sql .= " AND resseller = '" . $this->db->escape($seller) . "'";
-    }
-    if (!empty($searchValue)) {
-        $sql .= " AND (acctype LIKE '%" . $this->db->escape($searchValue) . "%' 
-                       OR country LIKE '%" . $this->db->escape($searchValue) . "%'
-                       OR resseller LIKE '%" . $this->db->escape($searchValue) . "%')";
-    }
 
-    // Get total records before pagination
-    $totalRecords = $this->db->query("SELECT COUNT(*) as count FROM huntington_banks WHERE sold = 0")->row['count'];
-
-    // Apply ordering and pagination
-    $sql .= " ORDER BY $orderBy $orderDir LIMIT $start, $length";
-
-    // Fetch data
-    $results = $this->db->query($sql)->rows;
-
-    // Prepare response for DataTables
-    $data = [];
-    foreach ($results as $bank) {
-        $data[] = [
-            'acctype' => $bank['acctype'],
-            'country' => $bank['country'],
-            'resseller' => $bank['resseller'],
-            'price' => number_format($bank['price'], 2),
-            'action' => '<button class="btn btn-buy" onclick="confirmPurchase('.$bank['id'].', '.$bank['price'].')">Buy Now</button>'
-        ];
-    }
-
-    // Return JSON response
-    echo json_encode([
-        'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
-        'recordsTotal' => $totalRecords,
-        'recordsFiltered' => count($data),
-        'data' => $data
-    ]);
-    exit;
-}
     /**
      * Process the purchase of a Huntington Bank product.
      */
