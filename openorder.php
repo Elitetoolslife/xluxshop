@@ -1,14 +1,146 @@
 <?php
-ob_start();
-session_start();
-date_default_timezone_set('UTC');
-include "includes/config.php";
-include("cr.php");
 
-if(!isset($_SESSION['sname']) and !isset($_SESSION['spass'])){
-   header("location: ../");
-   exit();
-}
+namespace App\Http\Controllers;
+
+require_once __DIR__ . '/../../../config/countrycodes.php'; // Expects $countrycodes array
+require 'vendor/autoload.php';
+use eftec\bladeone\BladeOne;
+use App\Models\User;
+
+class OrderController {
+    private $blade;
+    private $db;
+    private $countrycodes;
+
+    public function __construct($db) {
+        $views = __DIR__ . '/../../../views';   // Blade templates folder
+        $cache = __DIR__ . '/../../../cache';   // Cache folder
+        $this->blade = new BladeOne($views, $cache, BladeOne::MODE_AUTO);
+        $this->db = $db;
+        global $countrycodes;
+        $this->countrycodes = $countrycodes;
+    }
+
+    public function orders() {
+        $user = User::getAuthenticatedUser();
+        if (!$user) {
+            header("Location: /login");
+            exit();
+        }
+        $action = $_GET['action'] ?? 'view';
+        if ($action !== 'view') {
+            header('Content-Type: application/json');
+            if ($action === 'getOrders') {
+                echo json_encode($this->getOrders($user));
+            } elseif ($action === 'report') {
+                echo json_encode($this->reportOrder($user));
+            } elseif ($action === 'details' && isset($_GET['id'])) {
+                echo json_encode($this->getOrderDetails($_GET['id'], $user));
+            } else {
+                echo json_encode(["error" => "Invalid action."]);
+            }
+            exit();
+        }
+        echo $this->blade->run("orders", ["orders" => $this->getOrders($user)]);
+    }
+
+    public function getOrderDetailsApi() {
+        $user = User::getAuthenticatedUser();
+        if (!$user) {
+            echo json_encode(["error" => "Unauthorized"]);
+            exit();
+        }
+        if (!isset($_GET['id']) || !ctype_digit($_GET['id'])) {
+            echo json_encode(["error" => "Invalid order ID"]);
+            exit();
+        }
+        $orderId = intval($_GET['id']);
+        $details = $this->getOrderDetails($orderId, $user);
+        echo json_encode(isset($details['error']) ? $details : ["success" => true, "data" => $details]);
+        exit();
+    }
+
+    private function getOrders($user) {
+        $orders = [];
+        $username = $user->username;
+        $stmt = $this->db->prepare("SELECT * FROM purchases WHERE buyer=? ORDER BY id DESC");
+        $stmt->bind_param('s', $username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $orderData = [
+                'id'        => $row['id'],
+                's_id'      => $row['s_id'],
+                'buyer'     => $row['buyer'],
+                'type'      => strtoupper($row['type']),
+                'date'      => $row['date'],
+                'country'   => $row['country'],
+                'infos'     => $row['infos'],
+                'url'       => $row['url'],
+                'login'     => $row['login'],
+                'pass'      => $row['pass'],
+                'price'     => $row['price'],
+                'resseller' => $row['resseller'],
+                'reported'  => $row['reported'],
+                'reportid'  => $row['reportid']
+            ];
+            $purchaseTime = strtotime($row['date']);
+            $endTime = strtotime("+600 minutes", $purchaseTime);
+            $orderData['timeRemaining'] = max(0, $endTime - time());
+            $orders[] = $orderData;
+        }
+        return $orders;
+    }
+
+    private function getOrderDetails($orderId, $user) {
+        if ($orderId <= 0) {
+            return ["error" => "Invalid order ID."];
+        }
+        $username = $user->username;
+        $stmt = $this->db->prepare("SELECT * FROM purchases WHERE buyer=? AND id=?");
+        $stmt->bind_param('si', $username, $orderId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if (!$result || $result->num_rows == 0) {
+            return ["error" => "Order not found."];
+        }
+        $order = $result->fetch_assoc();
+        $details = [
+            'id'        => $order['id'],
+            's_id'      => $order['s_id'],
+            'buyer'     => $order['buyer'],
+            'type'      => strtoupper($order['type']),
+            'date'      => $order['date'],
+            'country'   => $order['country'],
+            'infos'     => $order['infos'],
+            'url'       => $order['url'],
+            'login'     => $order['login'],
+            'pass'      => $order['pass'],
+            'price'     => $order['price'],
+            'resseller' => $order['resseller'],
+            'reported'  => $order['reported'],
+            'reportid'  => $order['reportid']
+        ];
+        if (strtolower($order['acctype']) === "huntingtonbank" || strtolower($order['acctype']) === "chasebank") {
+            $tableName = strtolower($order['acctype']) === "huntingtonbank" ? "huntingtonbanks" : "chasebanks";
+            $stmt = $this->db->prepare("SELECT * FROM $tableName WHERE id=?");
+     
+
+        }
+        return $details;
+    }
+
+    public function submitReport($request) {
+        $user = User::getAuthenticatedUser();
+        if (!$user) {
+            echo json_encode(["success" => false, "message" => "Unauthorized"]);
+            exit();
+        }
+
+
+        }
+    }
+
 	function srl($item)
 		{
 		$item0 = $item;
