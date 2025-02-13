@@ -1,15 +1,66 @@
 <?php
-ob_start();
-session_start();
-date_default_timezone_set('UTC');
-include "../includes/config.php";
 
-if (!isset($_SESSION['sname']) && !isset($_SESSION['spass'])) {
-    header("location: ../");
-    exit();
-}
-$usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
-?>
+namespace App\Http\Controllers;
+
+require_once __DIR__ . '/../../../config/countrycodes.php'; // expects $countrycodes array
+require 'vendor/autoload.php';
+
+use eftec\bladeone\BladeOne;
+use App\Models\User;
+
+class OrderController extends BaseController {
+    private $blade;
+    private $db;
+    private $countrycodes;
+
+    public function __construct($db, array $countrycodes) {
+        $views = __DIR__ . '/../../../views';   // Blade templates folder
+        $cache = __DIR__ . '/../../../cache';   // Cache folder
+        $this->blade = new BladeOne($views, $cache, BladeOne::MODE_AUTO);
+        $this->db = $db;
+        $this->countrycodes = $countrycodes;
+    }
+
+    public function showHuntingtonbank() {
+        $user = User::getAuthenticatedUser();
+        if (!$user) {
+            header("Location: /login");
+            exit();
+     
+                    $query = mysql_query($dbcon, "SELECT DISTINCT `country` FROM `huntingtonbanks` WHERE `sold` = '0' ORDER BY country ASC");
+                    while ($row = mysqli_fetch_assoc($query)) {
+                        echo '<option value="' . htmlspecialchars($row['country']) . '">' . htmlspecialchars($row['country']) . '</option>';
+                    }
+                    
+       $query = mysqli_query($dbcon, "SELECT DISTINCT `resseller` FROM `huntingtonbanks` WHERE `sold` = '0' ORDER BY resseller ASC");
+                    while ($row = mysqli_fetch_assoc($query)) {
+                        $qer = mysqli_query($dbcon, "SELECT DISTINCT `id` FROM resseller WHERE username='" . mysqli_real_escape_string($dbcon, $row['resseller']) . "' ORDER BY id ASC") or die(mysqli_error($dbcon));
+                        while ($rpw = mysqli_fetch_assoc($qer)) {
+                            $SellerNick = "seller" . htmlspecialchars($rpw["id"]);
+                            echo '<option value="' . $SellerNick . '">' . $SellerNick . '</option>';
+                        }
+                    }
+        include("config/countrycodes.php");
+        $q = mysqli_query($dbcon, "SELECT * FROM huntingtonbanks WHERE sold='0' ORDER BY RAND()") or die(mysqli_error($dbcon));
+        while ($row = mysqli_fetch_assoc($q)) {
+            $countryfullname = $row['country'];
+            echo "
+            <tr id='row{$row['id']}'>     
+                <td>" . htmlspecialchars($row['country']) . "</td>
+                <td>" . htmlspecialchars($row['huntingtonbankname']) . "</td>
+                <td>Seller " . htmlspecialchars($row['resseller']) . "</td>
+                <td>$" . htmlspecialchars($row['balance']) . "</td>
+                <td>" . htmlspecialchars($row['infos']) . "</td>
+                <td>$" . htmlspecialchars($row['price']) . "</td>
+                <td>" . $row['date'] . "</td>
+                <td>
+                    <button onclick='buythistool(" . $row['id'] . ")' class='btn btn-warning btn-sm'>
+                        <i class='fas fa-shopping-cart'></i> Buy
+                    </button>
+                </td>
+            </tr>";
+        }
+        ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -49,12 +100,7 @@ $usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
                 <label for="huntingtonbank_country">Country:</label>
                 <select class="filterselect form-control input-sm" name="huntingtonbank_country" id="huntingtonbank_country">
                     <option value="">ALL</option>
-                    <?php
-                    $query = mysqli_query($dbcon, "SELECT DISTINCT `country` FROM `huntingtonbanks` WHERE `sold` = '0' ORDER BY country ASC");
-                    while ($row = mysqli_fetch_assoc($query)) {
-                        echo '<option value="' . htmlspecialchars($row['country']) . '">' . htmlspecialchars($row['country']) . '</option>';
-                    }
-                    ?>
+                    
                 </select>
             </div>
             <div class="filter-row">
@@ -65,16 +111,7 @@ $usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
                 <label for="huntingtonbank_seller">Seller:</label>
                 <select class="filterselect form-control input-sm" name="huntingtonbank_seller" id="huntingtonbank_seller">
                     <option value="">ALL</option>
-                    <?php
-                    $query = mysqli_query($dbcon, "SELECT DISTINCT `resseller` FROM `huntingtonbanks` WHERE `sold` = '0' ORDER BY resseller ASC");
-                    while ($row = mysqli_fetch_assoc($query)) {
-                        $qer = mysqli_query($dbcon, "SELECT DISTINCT `id` FROM resseller WHERE username='" . mysqli_real_escape_string($dbcon, $row['resseller']) . "' ORDER BY id ASC") or die(mysqli_error($dbcon));
-                        while ($rpw = mysqli_fetch_assoc($qer)) {
-                            $SellerNick = "seller" . htmlspecialchars($rpw["id"]);
-                            echo '<option value="' . $SellerNick . '">' . $SellerNick . '</option>';
-                        }
-                    }
-                    ?>
+             
                 </select>
             </div>
             <div class="filter-row">
@@ -98,28 +135,7 @@ $usrid = mysqli_real_escape_string($dbcon, $_SESSION['sname']);
         </tr>
     </thead>
     <tbody>
-        <?php
-        include("cr.php");
-        $q = mysqli_query($dbcon, "SELECT * FROM huntingtonbanks WHERE sold='0' ORDER BY RAND()") or die(mysqli_error($dbcon));
-        while ($row = mysqli_fetch_assoc($q)) {
-            $countryfullname = $row['country'];
-            echo "
-            <tr id='row{$row['id']}'>     
-                <td>" . htmlspecialchars($row['country']) . "</td>
-                <td>" . htmlspecialchars($row['huntingtonbankname']) . "</td>
-                <td>Seller " . htmlspecialchars($row['resseller']) . "</td>
-                <td>$" . htmlspecialchars($row['balance']) . "</td>
-                <td>" . htmlspecialchars($row['infos']) . "</td>
-                <td>$" . htmlspecialchars($row['price']) . "</td>
-                <td>" . $row['date'] . "</td>
-                <td>
-                    <button onclick='buythistool(" . $row['id'] . ")' class='btn btn-warning btn-sm'>
-                        <i class='fas fa-shopping-cart'></i> Buy
-                    </button>
-                </td>
-            </tr>";
-        }
-        ?>
+        
     </tbody>
 </table>
 
