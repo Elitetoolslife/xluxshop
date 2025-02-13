@@ -8,7 +8,7 @@ require 'vendor/autoload.php';
 use eftec\bladeone\BladeOne;
 use App\Models\User;
 
-class HuntingtonrController extends BaseController {
+class HuntingtonController extends BaseController {
     private $blade;
     private $db;
     private $countrycodes;
