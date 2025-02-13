@@ -26,22 +26,22 @@ class OrderController extends BaseController {
         if (!$user) {
             header("Location: /login");
             exit();
-     
-                    $query = mysql_query($dbcon, "SELECT DISTINCT `country` FROM `huntingtonbanks` WHERE `sold` = '0' ORDER BY country ASC");
+     }
+                    $query = mysql_query($db, "SELECT DISTINCT `country` FROM `huntingtonbanks` WHERE `sold` = '0' ORDER BY country ASC");
                     while ($row = mysqli_fetch_assoc($query)) {
                         echo '<option value="' . htmlspecialchars($row['country']) . '">' . htmlspecialchars($row['country']) . '</option>';
                     }
                     
-       $query = mysqli_query($dbcon, "SELECT DISTINCT `resseller` FROM `huntingtonbanks` WHERE `sold` = '0' ORDER BY resseller ASC");
+       $query = mysqli_query($db, "SELECT DISTINCT `resseller` FROM `huntingtonbanks` WHERE `sold` = '0' ORDER BY resseller ASC");
                     while ($row = mysqli_fetch_assoc($query)) {
-                        $qer = mysqli_query($dbcon, "SELECT DISTINCT `id` FROM resseller WHERE username='" . mysqli_real_escape_string($dbcon, $row['resseller']) . "' ORDER BY id ASC") or die(mysqli_error($dbcon));
+                        $qer = mysqli_query($db, "SELECT DISTINCT `id` FROM resseller WHERE username='" . mysqli_real_escape_string($db, $row['resseller']) . "' ORDER BY id ASC") or die(mysqli_error($db));
                         while ($rpw = mysqli_fetch_assoc($qer)) {
                             $SellerNick = "seller" . htmlspecialchars($rpw["id"]);
                             echo '<option value="' . $SellerNick . '">' . $SellerNick . '</option>';
                         }
                     }
         include("config/countrycodes.php");
-        $q = mysqli_query($dbcon, "SELECT * FROM huntingtonbanks WHERE sold='0' ORDER BY RAND()") or die(mysqli_error($dbcon));
+        $q = mysqli_query($db, "SELECT * FROM huntingtonbanks WHERE sold='0' ORDER BY RAND()") or die(mysqli_error($db));
         while ($row = mysqli_fetch_assoc($q)) {
             $countryfullname = $row['country'];
             echo "
@@ -60,6 +60,68 @@ class OrderController extends BaseController {
                 </td>
             </tr>";
         }
+        public function BuyHuntingtonbank() 
+         {
+        $user = User::getAuthenticatedUser();
+        if (!$user) {
+            header("Location: /login");
+            exit();
+     }
+
+include "includes/config.php";
+
+$usrid = mysqli_real_escape_string($db, $_SESSION['sname']);
+$uid = mysqli_real_escape_string($db, $_POST['id']);
+$price = mysqli_real_escape_string($db, $_POST['price']);
+$date = date("Y-m-d H:i:s");
+
+// Fetch user details
+$qqs2 = @mysqli_query($db, "SELECT * FROM users WHERE username='$usrid'") or die();
+$rows2 = mysqli_fetch_assoc($qqs2);
+$balance = $rows2['balance'];
+$ipur = $rows2['ipurchassed'];
+
+// Fetch the item details
+$query = "SELECT * FROM huntingtonbanks WHERE id = '$uid' LIMIT 1";
+$result = mysqli_query($db, $query);
+if ($result && mysqli_num_rows($result) > 0) {
+    $rows = mysqli_fetch_assoc($result);
+    $price = $rows['price'];
+    $country = mysqli_real_escape_string($db, $rows['country']);
+    $infos = mysqli_real_escape_string($db, $rows['infos']);
+    $url = mysqli_real_escape_string($db, $rows['url']);
+    $login = mysqli_real_escape_string($db, $rows['login']);
+    $pa = mysqli_real_escape_string($db, $rows['pass']);
+    $resseller = mysqli_real_escape_string($db, $rows['resseller']);
+    $acctype = mysqli_real_escape_string($db, $rows['acctype']);  // Fetch account type
+
+    if ($balance >= $price) {
+        // Update balance and complete purchase
+        $newb = $balance - $price;
+        $newb2 = mysqli_real_escape_string($db, $newb);
+
+        // Mark as sold
+        mysqli_query($db, "UPDATE huntingtonbanks SET sold='1', sto='$usrid', dateofsold='$date' WHERE id='$uid'");
+        mysqli_query($db, "UPDATE users SET balance='$newb2', ipurchassed=ipurchassed+1 WHERE username='$usrid'");
+
+        // Record the purchase with the account type
+        mysqli_query($db, "INSERT INTO orders
+            (s_id, buyer, type, date, country, infos, url, login, pass, price, resseller)
+            VALUES
+            ('$uid', '$usrid', '$acctype', '$date', '$country', '$infos', '$url', '$login', '$pa', '$price', '$resseller')
+        ");
+
+        // Update reseller's stats
+        mysqli_query($db, "UPDATE resseller SET allsales=(allsales + $price), soldb=(soldb + $price) WHERE username='$resseller'");
+
+        echo json_encode(["status" => "success", "message" => "Purchase successful"]);
+    } else {
+        echo json_encode(["status" => "error", "message" => "Not enough balance"]);
+    }
+} else {
+    echo json_encode(["status" => "error", "message" => "Item not found"]);
+}
+        
         ?>
 <!DOCTYPE html>
 <html lang="en">
