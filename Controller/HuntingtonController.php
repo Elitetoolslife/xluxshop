@@ -1,286 +1,497 @@
 <?php
+namespace App\Controllers\Admin;
 
-namespace App\Http\Controllers;
-
-require_once __DIR__ . '/../../../config/countrycodes.php'; // expects $countrycodes array
-require 'vendor/autoload.php';
-
-use eftec\bladeone\BladeOne;
+use App\Libraries\Admin\TemplateEngine;
+use App\Core\Session;
 use App\Models\User;
+use App\Core\Database;
+use App\Models\News;
+use App\Models\Orders;
+use App\Models\Tickets;
+use App\Models\Reports;
+use App\Helpers\CsrfHelper;
+use App\Controllers\Controller;
 
-class HuntingtonController extends BaseController {
-    private $blade;
-    private $db;
-    private $globalCountryCodes;
+<?php
+namespace App\Controllers\Admin\Banks\USA;
+/*
+|--------------------------------------------------------------------------
+| HuntingtonController
+|--------------------------------------------------------------------------
+|
+| Description: Handles US bank operations for Huntington Bank including
+| session management, view rendering, CSRF validation, and purchase handling.
+|
+*/
+use App\Libraries\Admin\TemplateEngine;
+use App\Core\Session;
+use App\Core\Database;
+use App\Helpers\CsrfHelper;
+use App\Models\Banks;
+use App\Models\User;
+use App\Controllers\Controller;
+
+/*
+|--------------------------------------------------------------------------
+| HuntingtonController
+|--------------------------------------------------------------------------
+|
+| Description: Handles US bank operations for Huntington Bank including
+| session management, view rendering, CSRF validation, and purchase handling.
+|
+*/
+class BBVAController extends Controller 
 
     /**
-     * Inject dependencies via the constructor.
-     *
-     * @param \mysqli $db
-     * @param array   $globalCountryCodes Global country codes array.
+     * Main account dashboard.
      */
-    public function __construct($db, array $globalCountryCodes) {
-        $views = __DIR__ . '/../../../views';   // Blade templates folder
-        $cache = __DIR__ . '/../../../cache';     // Cache folder
-        $this->blade = new BladeOne($views, $cache, BladeOne::MODE_AUTO);
-        $this->db = $db;
-        // Assign the provided global country codes to the class property.
-        $this->globalCountryCodes = $globalCountryCodes;
-        session_start(); // Start session for using $_SESSION
-    }
 
-    /**
-     * Display available Huntington Bank products.
-     */
-    public function showHuntingtonbank() {
-        $user = User::getAuthenticatedUser();
+    public function index() {
+        Session::start();
+        $user_id = Session::get('user_id');
+        if (!$user_id) {
+            Session::destroy();
+            return $this->redirect('/login');
+        }
+
+        $user = User::findById($user_id);
         if (!$user) {
-            header("Location: /login");
-            exit();
+            Session::destroy();
+            return $this->redirect('/login');
         }
 
-        // Retrieve user details to display on the page.
-        $username = $user->username;
-        $balance  = isset($user->balance) ? $user->balance : 0;
-        // Set your CSRF token here (update with your own logic if needed).
-        $csrf_token = bin2hex(random_bytes(32)); // Generate a CSRF token
+        // Orders counters
+        $allOrdersCount  = Orders::countAllOrders();
+        $completedCount  = Orders::countCompletedOrders();
+        $reportedCount   = Orders::countReportedOrders();
+        $rejectedCount   = Orders::countRejectedOrders();
 
-        // Retrieve unique countries where the product is unsold.
-        $countries = [];
-        $stmt = $this->db->prepare("SELECT DISTINCT `country` FROM `huntingtonbanks` WHERE sold = ? ORDER BY country ASC");
-        $sold = 0;
-        $stmt->bind_param('i', $sold);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            $countries[] = htmlspecialchars($row['country']);
-        }
-        $stmt->close();
+        // Tickets counters
+        $tickets         = Tickets::findByUser($user->username);
+        $ticketsCount    = count($tickets);
+        $newAdminReplies = Tickets::countNewAdminReplies();
+        $refundedCount   = Tickets::countRefundedTickets();
 
-        // Retrieve seller usernames and convert them into standardized seller IDs.
-        $sellers = [];
-        $stmt = $this->db->prepare("SELECT DISTINCT `resseller` FROM `huntingtonbanks` WHERE sold = ? ORDER BY resseller ASC");
-        $stmt->bind_param('i', $sold);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            // For each seller, get the seller's id from the resseller table.
-            $stmt2 = $this->db->prepare("SELECT `id` FROM resseller WHERE username = ? ORDER BY id ASC LIMIT 1");
-            $stmt2->bind_param('s', $row['resseller']);
-            $stmt2->execute();
-            $result2 = $stmt2->get_result();
-            if ($sellerRow = $result2->fetch_assoc()) {
-                $sellers[] = "seller" . htmlspecialchars($sellerRow['id']);
-            }
-            $stmt2->close();
-        }
-        $stmt->close();
+        // Reports counter
+        $reportsCount = (new Reports())->countActiveReports($user->id);
 
-        // Retrieve all unsold Huntington Bank products.
-        $banks = [];
-        $stmt = $this->db->prepare("SELECT * FROM huntingtonbanks WHERE sold = ? ORDER BY RAND()");
-        $stmt->bind_param('i', $sold);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            $banks[] = $row;
-        }
-        $stmt->close();
+        // Latest news
+        $news = News::findAll() ?: [];
 
-        // Pass variables to the view.
-        echo $this->blade->run("huntington", [
-            "countries"       => $countries,
-            "sellers"         => $sellers,
-            "huntingtonbanks" => $banks,  // Renamed key to match the view's expected variable.
-            "countrycodes"    => $this->globalCountryCodes,
-            "username"        => $username,
-            "balance"         => $balance,
-            "csrf_token"      => $csrf_token
+        // Generate CSRF token
+        $csrf_token = CsrfHelper::generateToken();
+
+        // Display header
+        TemplateEngine::displayHeader(['csrf_token' => $csrf_token]);
+
+        // Display the main content
+        \$this->render('admin/main/index', [
+            'user'             => $user,
+            'orders'           => Orders::findByBuyer($user->username),
+            'allOrdersCount'   => $allOrdersCount,
+            'completedCount'   => $completedCount,
+            'reportedCount'    => $reportedCount,
+            'rejectedCount'    => $rejectedCount,
+            'ticketsCount'     => $ticketsCount,
+            'newAdminReplies'  => $newAdminReplies,
+            'refundedCount'    => $refundedCount,
+            'reportsCount'     => $reportsCount,
+            'news'             => $news,
+            'tableConfig'      => \$this->tableConfig,
+            'csrf_token'       => $csrf_token
         ]);
+
+        // Display footer
+        TemplateEngine::displayFooter();
+    }
+     /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+   {
+    /**************************************************************************
+     * Function: index
+     * -------------------------------------------------------------------------
+     * Handles session management, data retrieval, CSRF token generation, and
+     * view rendering for the main index page.
+     **************************************************************************/
+    public function index() {
+        Session::start();
+        $user_id = Session::get('user_id');
+        if (!$user_id) {
+            Session::destroy();
+            return $this->redirect('/login');
+        }  
+    /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        $user = User::findById($user_id);
+        if (!$user) {
+            Session::destroy();
+            return $this->redirect('/login');
+        }
+        /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+  
+        $banks = Banks::getBanks([]);
+        $countrycodes = require __DIR__ . '/../../../../config/countrycodes.php';
+        $csrf_token = CsrfHelper::generateToken();
+          /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        $header = $this->renderHeader(['csrf_token' => $csrf_token]);
+/**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+        ob_start();
+        $this->render('account/us/bbva-log-full-info/index',
+        [
+            'user'         => $user,
+            'banks'        => $banks,
+            'countrycodes' => $countrycodes,
+            'csrf_token'   => $csrf_token
+        ]);
+/**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+        $content = ob_get_clean();
+        $footer = $this->renderFooter();
+        echo $header . $content . $footer;
     }
 
-    public function getHuntingtonData()
+    /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+    private function renderHeader(array $data = []): string
     {
-        // Get request parameters
-        $country = isset($_GET['country']) ? $_GET['country'] : '';
-        $seller = isset($_GET['seller']) ? $_GET['seller'] : '';
-        $start = isset($_GET['start']) ? (int)$_GET['start'] : 0;
-        $length = isset($_GET['length']) ? (int)$_GET['length'] : 10;
-        $searchValue = isset($_GET['search']['value']) ? trim($_GET['search']['value']) : '';
-        $orderColumnIndex = isset($_GET['order'][0]['column']) ? (int)$_GET['order'][0]['column'] : 0;
-        $orderDir = isset($_GET['order'][0]['dir']) ? $_GET['order'][0]['dir'] : 'asc';
 
-        // Map DataTables column index to actual database columns
-        $columns = ['acctype', 'country', 'resseller', 'price'];
-        $orderBy = isset($columns[$orderColumnIndex]) ? $columns[$orderColumnIndex] : 'acctype';
 
-        // Base SQL query
-        $sql = "SELECT * FROM huntingtonbanks WHERE sold = 0";
+/**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
 
-        // Apply filters
-        if (!empty($country)) {
-            $sql .= " AND country = '" . $this->db->real_escape_string($country) . "'";
+        $headerPath = __DIR__ . '/../../../../resources/views/LayoutHeader.php';
+/**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+        if (file_exists($headerPath)) {
+            extract($data);
+            ob_start();
+            require_once $headerPath;
+            return ob_get_clean();
         }
-        if (!empty($seller)) {
-            $sql .= " AND resseller = '" . $this->db->real_escape_string($seller) . "'";
-        }
-        if (!empty($searchValue)) {
-            $sql .= " AND (acctype LIKE '%" . $this->db->real_escape_string($searchValue) . "%' 
-                           OR country LIKE '%" . $this->db->real_escape_string($searchValue) . "%'
-                           OR resseller LIKE '%" . $this->db->real_escape_string($searchValue) . "%')";
-        }
-
-        // Get total records before pagination
-        $totalRecords = $this->db->query("SELECT COUNT(*) as count FROM huntingtonbanks WHERE sold = 0")->fetch_assoc()['count'];
-
-        // Apply ordering and pagination
-        $sql .= " ORDER BY $orderBy $orderDir LIMIT $start, $length";
-
-        // Fetch data
-        $results = $this->db->query($sql)->fetch_all(MYSQLI_ASSOC);
-
-        // Prepare response for DataTables
-        $data = [];
-        foreach ($results as $bank) {
-            $data[] = [
-                'acctype' => $bank['acctype'],
-                'country' => $bank['country'],
-                'resseller' => $bank['resseller'],
-                'price' => number_format($bank['price'], 2),
-                'action' => '<button class="btn btn-buy" onclick="confirmPurchase('.$bank['id'].', '.$bank['price'].')">Buy Now</button>'
-            ];
-        }
-
-        // Return JSON response
-        echo json_encode([
-            'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
-            'recordsTotal' => $totalRecords,
-            'recordsFiltered' => count($data),
-            'data' => $data
-        ]);
-        exit;
+        return '';
     }
+
+    /**************************************************************************
+     * Function: renderFooter
+     * -------------------------------------------------------------------------
+     * Renders the footer view from resources/views/LayoutFooter.php.
+     **************************************************************************/
+    private function renderFooter(array $data = []): string
+    {
+
+/**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        $footerPath = __DIR__ . '/../../../../resources/views/LayoutFooter.php';
+
+/**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        if (file_exists($footerPath)) {
+            extract($data);
+            ob_start();
+            require_once $footerPath;
+            return ob_get_clean();
+        }
+        return '';
+    }
+
+    /**************************************************************************
+     * Function: getBanksData
+     * -------------------------------------------------------------------------
+     * Retrieves bank data, maps the banks information, and returns a JSON 
+     * response.
+     **************************************************************************/
+    public function getBanksData() {
+        try {
+            $banks = Banks::getBanks($_GET);
+
+            if (!$banks) {
+                return $this->jsonResponse(['error' => 'No data found'], 404);
+            }
+      /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+            $response = [
+                'draw'            => intval($_GET['draw'] ?? 1),
+                'recordsTotal'    => count($banks),
+                'recordsFiltered' => count($banks),
+                'data'            => array_map(function ($bank) {
+                    return [
+                        'id'        => $bank['id'] ?? '',
+                        'acctype'   => $bank['acctype'] ?? '',
+                        'country'       => $bank['country'] ?? '',
+                        'country_code'  => strtolower($bank['country_code'] ?? 'us'),
+                        'infos'     => $bank['infos'] ?? '',
+                        'price'     => $bank['price'] ?? 0,
+                        'date'      => $bank['date'] ?? '',
+                        'resseller' => $bank['resseller'] ?? '',
+                        'bankname'  => $bank['bankname'] ?? '',
+                        'balance'   => $bank['balance'] ?? 0
+                    ];
+                }, $banks)
+            ];
+     /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+            return $this->jsonResponse($response);
+        } catch (\Exception $e) {
+            error_log("Error in getBanksData: " . $e->getMessage());
+            return $this->jsonResponse(['error' => 'Server error'], 500);
+        }
+    }
+
+    /**************************************************************************
+     * Function: buy
+     * -------------------------------------------------------------------------
+     * Processes purchase requests, handles user and item validation, deducts
+     * balance, updates records, and logs purchase details.
+     **************************************************************************/
+    public function buy() {
+        Session::start();
+
+        $db = Database::connect(); 
+        $user_id = Session::get('user_id');
+
+        if (!$user_id) {
+            return $this->jsonResponse(['error' => 'Unauthorized'], 403);
+        }
+  /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        $itemId = $_POST['id'] ?? null;
+        $token  = $_POST['_token'] ?? null;
+
+        if (!$itemId || !$token || !CsrfHelper::validateToken($token)) {
+            return $this->jsonResponse(['error' => 'Invalid parameters or CSRF token.'], 400);
+        }
+  /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        // Fetch user details
+        $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$user) {
+            return $this->jsonResponse(['error' => 'User not found.'], 404);
+        }
+     /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        // Ensure the correct table and column are used
+        $stmt = $db->prepare("SELECT * FROM banks WHERE id = ? AND (sold = 0)"); 
+        $stmt->bind_param("i", $itemId);
+        $stmt->execute();
+        $item = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        if (!$item) {
+            return $this->jsonResponse(['error' => 'Item not found or already sold.'], 404);
+        }
+
+        // Check user balance
+        if ($user['balance'] < $item['price']) {
+            return $this->jsonResponse(['error' => 'Insufficient balance.'], 400);
+        }
+  /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        // Assign default values where needed
+        $login     = $item['login'] ?? 'N/A';
+        $password  = $item['pass'] ?? 'N/A';
+        $url       = $item['url'] ?? 'N/A';
+        $infos     = $item['infos'] ?? 'No info available';
+        $acctype   = $item['acctype'] ?? 'Unknown';
+        $resseller = $item['resseller'] ?? 'Unknown';
+  /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        // Deduct balance
+        $newBalance = $user['balance'] - $item['price'];
+        $stmt = $db->prepare("UPDATE users SET balance = ?, ipurchassed = ipurchassed + 1 WHERE id = ?");
+        $stmt->bind_param("di", $newBalance, $user_id);
+        $stmt->execute();
+        $stmt->close();
+     /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        // Mark item as sold
+        $date = date("Y-m-d H:i:s");
+        $stmt = $db->prepare("UPDATE banks SET sold = 1, sto = ?, dateofsold = ? WHERE id = ?");
+        $stmt->bind_param("ssi", $user['username'], $date, $itemId);
+        $stmt->execute();
+        $stmt->close();
+     /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        // Insert purchase record
+        $stmt = $db->prepare("INSERT INTO orders (s_id, buyer, type, date, country, infos, url, login, pass, price, resseller) 
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("issssssssds", 
+                          $itemId, $user['username'], $acctype, $date, $item['country'], $infos, 
+                          $url, $login, $password, $item['price'], $resseller);
+        $stmt->execute();
+        $stmt->close();
+     /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+        // Update reseller sales stats
+        $stmt = $db->prepare("UPDATE resseller SET allsales = allsales + ?, soldb = soldb + ? WHERE username = ?");
+        $stmt->bind_param("dds", $item['price'], $item['price'], $resseller);
+        $stmt->execute();
+        $stmt->close();
+
+        return $this->jsonResponse(["success" => "Purchase successful."]);
+    }
+    /**************************************************************************
+     * Function: renderHeader
+     * -------------------------------------------------------------------------
+     * Renders the header view from resources/views/LayoutHeader.php.
+     **************************************************************************/
+
+    protected function jsonResponse($data, $statusCode = 200) {
+        header('Content-Type: application/json');
+        http_response_code($statusCode);
+        echo json_encode($data);
+        exit();
+    }
+
 
     /**
-     * Process the purchase of a Huntington Bank product.
+     * Main account dashboard.
      */
-    public function buyHuntingtonbank() {
-        $user = User::getAuthenticatedUser();
-        if (!$user) {
-            header("Location: /login");
-            exit();
-        }
-
-        // Validate required input.
-        if (!isset($_SESSION['user_id'], $_POST['id'])) {
-            echo json_encode(["status" => "error", "message" => "Invalid request"]);
-            exit();
-        }
-
-        $user = $_SESSION['user_id'];
-        $uid   = (int)$_POST['id'];
-        $date  = date("Y-m-d H:i:s");
-
-        // Fetch user details.
-        $stmt = $this->db->prepare("SELECT balance, ipurchassed FROM users WHERE username = ?");
-        $stmt->bind_param('s', $user);
-        $stmt->execute();
-        $userResult = $stmt->get_result();
-        $userData = $userResult->fetch_assoc();
-        $stmt->close();
-
-        if (!$userData) {
-            echo json_encode(["status" => "error", "message" => "User not found"]);
-            exit();
-        }
-        $balance = $userData['balance'];
-
-        // Fetch Huntington Bank product details.
-        $stmt = $this->db->prepare("SELECT * FROM huntingtonbanks WHERE id = ? AND sold = ? LIMIT 1");
-        $sold = 0;
-        $stmt->bind_param('ii', $uid, $sold);
-        $stmt->execute();
-        $bankResult = $stmt->get_result();
-        $bank = $bankResult->fetch_assoc();
-        $stmt->close();
-
-        if (!$bank) {
-            echo json_encode(["status" => "error", "message" => "Item not found or already sold"]);
-            exit();
-        }
-
-        // Verify that the user has sufficient funds.
-        if ($balance < $bank['price']) {
-            echo json_encode(["status" => "error", "message" => "Not enough balance"]);
-            exit();
-        }
-        $newBalance = $balance - $bank['price'];
-
-        // Begin transaction.
-        $this->db->begin_transaction();
-        $transactionSuccess = true;
-
-        // 1. Mark the bank product as sold.
-        $stmt = $this->db->prepare("UPDATE huntingtonbanks SET sold = 1, sto = ?, dateofsold = ? WHERE id = ?");
-        $stmt->bind_param('ssi', $user, $date, $uid);
-        if (!$stmt->execute()) {
-            $transactionSuccess = false;
-        }
-        $stmt->close();
-
-        // 2. Deduct the purchase price from the user's balance and increment purchase count.
-        if ($transactionSuccess) {
-            $stmt = $this->db->prepare("UPDATE users SET balance = ?, ipurchassed = ipurchassed + 1 WHERE username = ?");
-            $stmt->bind_param('is', $newBalance, $user);
-            if (!$stmt->execute()) {
-                $transactionSuccess = false;
-            }
-            $stmt->close();
-        }
-
-        // 3. Insert a new order record.
-        if ($transactionSuccess) {
-            $stmt = $this->db->prepare("INSERT INTO orders (s_id, buyer, type, date, country, infos, url, login, pass, price, resseller)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $type = $bank['acctype'];
-            $stmt->bind_param(
-                'issssssssds',
-                $uid,
-                $user,
-                $type,
-                $date,
-                $bank['country'],
-                $bank['infos'],
-                $bank['url'],
-                $bank['login'],
-                $bank['pass'],
-                $bank['price'],
-                $bank['resseller']
-            );
-            if (!$stmt->execute()) {
-                $transactionSuccess = false;
-            }
-            $stmt->close();
-        }
-
-        // 4. Update the reseller's sales statistics.
-        if ($transactionSuccess) {
-            $stmt = $this->db->prepare("UPDATE resseller SET allsales = allsales + ?, soldb = soldb + ? WHERE username = ?");
-            $price = $bank['price'];
-            $stmt->bind_param('dds', $price, $price, $bank['resseller']);
-            if (!$stmt->execute()) {
-                $transactionSuccess = false;
-            }
-            $stmt->close();
-        }
-
-        // Finalize transaction.
-        if ($transactionSuccess) {
-            $this->db->commit();
-            echo json_encode(["status" => "success", "message" => "Purchase successful"]);
-        } else {
-            $this->db->rollback();
-            echo json_encode(["status" => "error", "message" => "Transaction failed"]);
-        }
+   public function index() {
+    Session::start();
+    $user_id = Session::get('user_id');
+    if (!$user_id) {
+        Session::destroy();
+        return $this->redirect('/login');
     }
+
+    $user = User::findById($user_id);
+    if (!$user) {
+        Session::destroy();
+        return $this->redirect('/login');
+    }
+
+    // Orders counters
+    $allOrdersCount  = Orders::countAllOrders();
+    $completedCount  = Orders::countCompletedOrders();
+    $reportedCount   = Orders::countReportedOrders();
+    $rejectedCount   = Orders::countRejectedOrders();
+
+    // Tickets counters
+    $tickets         = Tickets::findByUser($user->username);
+    $ticketsCount    = count($tickets);
+    $newAdminReplies = Tickets::countNewAdminReplies();
+    $refundedCount   = Tickets::countRefundedTickets();
+
+    // Reports counter
+    $reportsCount = (new Reports())->countActiveReports($user->id);
+
+    // Latest news
+    $news = News::findAll() ?: [];
+
+    // Generate CSRF token
+    $csrf_token = CsrfHelper::generateToken();
+
+    // Display header
+    TemplateEngine::displayHeader(['csrf_token' => $csrf_token]);
+
+    // Display the main content
+    $this->render('admin/main/index', [
+        'user'             => $user,
+        'orders'           => Orders::findByBuyer($user->username),
+        'allOrdersCount'   => $allOrdersCount,
+        'completedCount'   => $completedCount,
+        'reportedCount'    => $reportedCount,
+        'rejectedCount'    => $rejectedCount,
+        'ticketsCount'     => $ticketsCount,
+        'newAdminReplies'  => $newAdminReplies,
+        'refundedCount'    => $refundedCount,
+        'reportsCount'     => $reportsCount,
+        'news'             => $news,
+        'tableConfig'      => $this->tableConfig,
+        'csrf_token'       => $csrf_token
+    ]);
+
+    // Display footer
+    TemplateEngine::displayFooter();
+}
 }
